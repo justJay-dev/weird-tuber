@@ -1,4 +1,5 @@
 import pygame
+import time
 from typing import Tuple
 
 
@@ -6,6 +7,9 @@ class Screen:
     def __init__(self, surface: pygame.Surface, font: pygame.font.Font):
         self.surface = surface
         self.font = font
+        # toast message state
+        self._toast_text: str | None = None
+        self._toast_until: float = 0.0
 
     def fill(self, color: Tuple[int, int, int]):
         self.surface.fill(color)
@@ -27,6 +31,58 @@ class Screen:
 
     def flip(self):
         pygame.display.flip()
+
+    def draw_menu(self, title: str, items: list[str], selected: int):
+        """Draw a simple centered vertical menu with the given items and highlight the selected index."""
+        w, h = self.get_size()
+        box_w = int(w * 0.6)
+        box_h = int(h * 0.6)
+        box_x = (w - box_w) // 2
+        box_y = (h - box_h) // 2
+        # background box
+        pygame.draw.rect(self.surface, (30, 30, 30), (box_x, box_y, box_w, box_h))
+        # title
+        self.draw_text_center(title, w / 2, box_y + 24, (255, 255, 255))
+        # items
+        start_y = box_y + 56
+        line_h = 28
+        for i, it in enumerate(items):
+            color = (255, 255, 0) if i == selected else (200, 200, 200)
+            self.draw_text(it, box_x + 16, start_y + i * line_h, color)
+
+    def draw_modal_backdrop(self, alpha: int = 160):
+        """Draw a semi-transparent fullscreen backdrop to indicate a modal on top."""
+        w, h = self.get_size()
+        s = pygame.Surface((w, h), pygame.SRCALPHA)
+        s.fill((0, 0, 0, alpha))
+        self.surface.blit(s, (0, 0))
+
+    def show_toast(self, text: str, duration: float = 2.0):
+        """Show a transient toast message for duration seconds."""
+        self._toast_text = str(text)
+        self._toast_until = time.time() + float(duration)
+
+    def _draw_toast(self):
+        if not self._toast_text:
+            return
+        if time.time() > self._toast_until:
+            self._toast_text = None
+            return
+        w, h = self.get_size()
+        txt = self._toast_text
+        surf = self.font.render(txt, True, (20, 20, 20))
+        tw, th = surf.get_size()
+        pad = 12
+        box_w = tw + pad * 2
+        box_h = th + pad * 2
+        box_x = (w - box_w) // 2
+        box_y = h - 80
+        # semi-opaque background
+        bg = pygame.Surface((box_w, box_h), pygame.SRCALPHA)
+        bg.fill((255, 255, 255, 220))
+        self.surface.blit(bg, (box_x, box_y))
+        # text centered
+        self.surface.blit(surf, (box_x + pad, box_y + pad))
 
     def draw_debug(
         self,

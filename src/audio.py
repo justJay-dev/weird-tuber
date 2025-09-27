@@ -52,7 +52,7 @@ class AudioInput:
                     self._last_error = str(e)
                 time.sleep(0.1)
 
-    def start(self) -> bool:
+    def start(self, device_index: Optional[int] = None) -> bool:
         self._last_error = None
         if self._pa is None:
             self._last_error = "PyAudio not available"
@@ -61,13 +61,17 @@ class AudioInput:
 
         try:
             self._pa_instance = self._pa.PyAudio()
-            self._stream = self._pa_instance.open(
+            kwargs = dict(
                 format=self._pa.paInt16,
                 channels=self.CHANNELS,
                 rate=self.RATE,
                 input=True,
                 frames_per_buffer=self.CHUNK,
             )
+            if device_index is not None:
+                kwargs["input_device_index"] = int(device_index)
+
+            self._stream = self._pa_instance.open(**kwargs)
         except Exception as e:
             self._last_error = str(e)
             self._available = False
@@ -87,6 +91,42 @@ class AudioInput:
         self._reader_thread.start()
         self._available = True
         return True
+
+    def list_input_devices(self):
+        """Return a list of input-capable devices as dicts: {'index': int, 'name': str, 'maxInputChannels': int}.
+
+        This method creates a temporary PyAudio instance to query devices and then terminates it.
+        """
+        devices = []
+        try:
+            pa = self._pa.PyAudio()
+        except Exception:
+            return devices
+
+        try:
+            count = pa.get_device_count()
+            for i in range(count):
+                try:
+                    info = pa.get_device_info_by_index(i)
+                    if int(info.get("maxInputChannels", 0)) > 0:
+                        devices.append(
+                            {
+                                "index": int(info.get("index", i)),
+                                "name": str(info.get("name", "device-" + str(i))),
+                                "maxInputChannels": int(
+                                    info.get("maxInputChannels", 0)
+                                ),
+                            }
+                        )
+                except Exception:
+                    continue
+        finally:
+            try:
+                pa.terminate()
+            except Exception:
+                pass
+
+        return devices
 
     def stop(self):
         self._running = False
